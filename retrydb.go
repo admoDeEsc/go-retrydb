@@ -26,9 +26,11 @@
 // No requiere cambiar ninguna query ni la lógica de repositorio.
 //
 // ============================================================================
-// FUENTE ÚNICA DE VERDAD: este archivo vive en el módulo canónico
-// github.com/admoDeEsc/go-retrydb y se propaga a los servicios Go mediante el
-// require de go.mod (tag semver). NO editar copias por-servicio a mano.
+// ESTADO: módulo HISTÓRICO / DE REFERENCIA (github.com/admoDeEsc/go-retrydb).
+// Ningún servicio del stack lo consume: todos usan pgx/v5 stdlib en modo
+// QueryExecModeSimpleProtocol (PgBouncer-safe), donde el error 26000/08P01 que
+// este driver reintentaba ya no ocurre. Se conserva como referencia. Ver el
+// README del módulo y el README raíz del proyecto.
 // ============================================================================
 package retrydb
 

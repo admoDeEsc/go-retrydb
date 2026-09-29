@@ -1,38 +1,40 @@
-# go-retrydb — driver `pq-retry`
+# go-retrydb — driver `pq-retry` (HISTÓRICO / DE REFERENCIA)
 
 Driver `database/sql` que envuelve a `lib/pq` y reintenta de forma transparente
 el error transitorio de prepared statement de PgBouncer (SQLSTATE `26000` /
 `08P01`) en modo *transaction pooling*.
 
-Es un **módulo Go remoto público**: `github.com/Dabvit/go-retrydb`. Los
-microservicios lo consumen como dependencia normal (no hay copias por-servicio).
+## Estado actual
 
-## Uso en un servicio
+**Ningún microservicio del stack consume este módulo hoy.** Todos los servicios
+Go abren la base directamente con **`pgx/v5` (stdlib) en modo
+`QueryExecModeSimpleProtocol`**, que es *PgBouncer-safe*: al no usar prepared
+statements en el protocolo, el error transitorio `26000`/`08P01` que `pq-retry`
+reintentaba simplemente **no ocurre**. Por eso el driver dejó de ser necesario.
 
-`go.mod`:
+El module path canónico es `github.com/admoDeEsc/go-retrydb` (coherente con la
+organización `admoDeEsc/*` del monorepo). El módulo:
 
-    require github.com/Dabvit/go-retrydb v1.0.0
+- **No** está incluido en el `go.work` del monorepo.
+- **No** es dependencia (`require`) de ningún servicio.
+- Se conserva como **referencia** de la técnica de reintento y por su suite de
+  tests (`retrydb_test.go`).
 
-En `main.go` (o donde se abra la DB):
+Para el enfoque de acceso a datos vigente, ver la sección "Flujo de desarrollo
+Go" del `README.md` de la raíz del proyecto.
 
-```go
-import _ "github.com/Dabvit/go-retrydb" // blank import: registra el driver en init()
+## Qué hace el driver (referencia técnica)
 
-db, err := sql.Open("pq-retry", dsn)    // en vez de "postgres"
-```
-
-Como es un repo **público**, `go mod download` lo descarga en el `docker build`
-sin credenciales.
-
-## Cómo modificar el driver
-
-1. Editar `retrydb.go` y sus tests aquí.
-2. Commit + push a `github.com/Dabvit/go-retrydb`.
-3. Publicar un nuevo tag semver (p.ej. `git tag v1.1.0 && git push origin v1.1.0`).
-4. En cada servicio que lo use: `go get github.com/Dabvit/go-retrydb@v1.1.0`.
+Registra un driver `database/sql` llamado `pq-retry` que envuelve a `lib/pq` y
+convierte el error transitorio de prepared statement (que ocurre cuando PgBouncer
+reasigna la conexión de servidor entre Parse y Bind) en `driver.ErrBadConn`, de
+modo que `database/sql` descarta la conexión y reintenta en una fresca. El fallo
+es pre-ejecución (fase Parse/Bind), por lo que el reintento es seguro e
+idempotente. Cobertura: `Conn.Query/Exec` de sentencia suelta y `Stmt.Query/Exec`
+de prepared statements cacheados por el pool. Detalle completo en el encabezado de
+`retrydb.go`.
 
 ## Verificación
 
-`orquestaDeDIC/scripts/check_retrydb.sh` confirma que NINGÚN servicio haya
-vuelto a introducir una copia local `internal/retrydb/` y que los servicios que
-usan `pq-retry` lo declaren en su `go.mod` (útil para CI).
+`orquestaDeDIC/scripts/check_retrydb.sh` es un guardaraíl de CI: confirma que
+ningún servicio reintroduzca una copia local `internal/retrydb/`.
